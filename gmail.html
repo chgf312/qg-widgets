@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gmail</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#191919; --card:#202020; --hover:#2a2a2a; --ink:#ebebeb; --dim:#9b9b9b; --line:#2f2f2f; --acc:#d9b26f; }
+  @media (prefers-color-scheme: light) { :root { --bg:#ffffff; --card:#f7f7f5; --hover:#efefed; --ink:#1f1f1f; --dim:#787774; --line:#e9e9e7; --acc:#9a6b1f; } }
+  * { box-sizing:border-box; margin:0; }
+  html,body { height:100%; }
+  body { background:var(--bg); color:var(--ink); font-family:'Inter',system-ui,sans-serif; display:flex; flex-direction:column; overflow:hidden; padding:4px 2px; }
+  .hdr { display:flex; align-items:center; justify-content:space-between; padding-bottom:8px; }
+  .hdr h1 { font-family:'Cormorant Garamond',serif; font-weight:500; font-size:24px; }
+  .hdr h1 small { font-family:'Inter',sans-serif; font-size:11px; font-weight:600; color:#191919; background:var(--acc); border-radius:10px; padding:2px 7px; margin-left:6px; vertical-align:4px; }
+  .acts { display:flex; gap:6px; }
+  .acts a { font-size:11px; color:var(--dim); text-decoration:none; border:1px solid var(--line); border-radius:4px; padding:3px 8px; }
+  .acts a:hover { color:var(--ink); border-color:var(--dim); }
+  #app { flex:1; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
+  a.m { display:block; padding:8px 10px; margin-bottom:6px; background:var(--card); border:1px solid var(--line); border-radius:6px; color:inherit; text-decoration:none; }
+  a.m:hover { background:var(--hover); }
+  .top { display:flex; justify-content:space-between; gap:8px; font-size:12px; }
+  .de { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .h { color:var(--dim); font-size:11px; white-space:nowrap; }
+  .as { font-size:13px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sn { font-size:11px; color:var(--dim); margin-top:2px; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+  .free { color:var(--dim); font-size:13px; padding:6px 0; }
+  .connect { padding:10px 0; font-size:13px; color:var(--dim); }
+  .connect button { margin-top:10px; font:inherit; font-weight:600; color:#191919; background:var(--acc); border:0; border-radius:6px; padding:8px 14px; cursor:pointer; }
+  .msg { color:var(--dim); font-size:13px; }
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <h1>Gmail<small id="n" hidden></small></h1>
+    <div class="acts">
+      <a href="https://mail.google.com/mail/u/?authuser=chgf312@gmail.com#inbox" target="_blank" rel="noopener">Abrir</a>
+      <a href="https://mail.google.com/mail/u/?authuser=chgf312@gmail.com#inbox?compose=new" target="_blank" rel="noopener">＋ Escrever</a>
+    </div>
+  </div>
+  <div id="app"><div class="msg">Carregando…</div></div>
+<script src="google-auth.js"></script>
+<script>
+  const app = document.getElementById("app");
+  const API = "https://gmail.googleapis.com/gmail/v1/users/me";
+  const esc = s => String(s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const pad = n => String(n).padStart(2, "0");
+
+  function quando(ms) {
+    const d = new Date(ms), hoje = new Date();
+    if (d.toDateString() === hoje.toDateString()) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const ontem = new Date(hoje); ontem.setDate(hoje.getDate() - 1);
+    if (d.toDateString() === ontem.toDateString()) return "ontem";
+    return d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", "");
+  }
+  function nome(from) {
+    const m = (from || "").match(/^\s*"?([^"<]+?)"?\s*</);
+    return m ? m[1] : (from || "").replace(/[<>]/g, "");
+  }
+  function decode(s) {
+    const t = document.createElement("textarea"); t.innerHTML = s || ""; return t.value;
+  }
+
+  async function load() {
+    const [label, lista] = await Promise.all([
+      qgApi(`${API}/labels/INBOX`),
+      qgApi(`${API}/messages?maxResults=10&q=${encodeURIComponent("in:inbox is:unread")}`),
+    ]);
+    const n = document.getElementById("n");
+    n.hidden = !label.messagesUnread;
+    n.textContent = label.messagesUnread;
+    const ids = (lista.messages || []).map(m => m.id);
+    if (!ids.length) { app.innerHTML = `<div class="free">Nenhum e-mail não lido. Caixa em dia.</div>`; return; }
+    const msgs = await Promise.all(ids.map(id =>
+      qgApi(`${API}/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`)));
+    app.innerHTML = msgs.map(m => {
+      const h = Object.fromEntries((m.payload.headers || []).map(x => [x.name.toLowerCase(), x.value]));
+      const url = `https://mail.google.com/mail/u/?authuser=chgf312@gmail.com#inbox/${m.threadId}`;
+      return `<a class="m" href="${url}" target="_blank" rel="noopener">
+        <div class="top"><span class="de">${esc(nome(h.from))}</span><span class="h">${quando(+m.internalDate)}</span></div>
+        <div class="as">${esc(h.subject || "(sem assunto)")}</div>
+        <div class="sn">${esc(decode(m.snippet))}</div></a>`;
+    }).join("");
+  }
+
+  qgMount({ el: app, load, every: 3 * 60 * 1000 });
+</script>
+</body>
+</html>
