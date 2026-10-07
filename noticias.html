@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>notícias</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#191919; --card:#202020; --hover:#2a2a2a; --ink:#ebebeb; --dim:#9b9b9b; --line:#2f2f2f; --tag:#d9b26f; }
+  @media (prefers-color-scheme: light) { :root { --bg:#ffffff; --card:#f7f7f5; --hover:#efefed; --ink:#1f1f1f; --dim:#787774; --line:#e9e9e7; --tag:#9a6b1f; } }
+  * { box-sizing:border-box; margin:0; }
+  html,body { height:100%; }
+  body { background:var(--bg); color:var(--ink); font-family:'Inter',system-ui,sans-serif; display:flex; flex-direction:column; overflow:hidden; }
+  .hdr { display:flex; align-items:center; justify-content:space-between; padding:4px 2px 10px; }
+  .hdr h1 { font-size:15px; font-weight:700; }
+  .hdr h1 span { color:var(--dim); font-weight:500; }
+  .hdr .r { font-size:11px; color:var(--dim); display:flex; gap:8px; align-items:center; }
+  .hdr button { font:inherit; color:var(--dim); background:var(--card); border:1px solid var(--line); border-radius:4px; padding:2px 7px; cursor:pointer; }
+  .hdr button:hover { color:var(--ink); }
+  .grid { flex:1; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:10px; align-content:start; grid-auto-rows:max-content; padding-bottom:6px; scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
+  a.card { display:flex; flex-direction:column; background:var(--card); border-radius:6px; overflow:hidden; color:inherit; text-decoration:none; border:1px solid var(--line); transition:background .15s; }
+  a.card:hover { background:var(--hover); }
+  .img { height:110px; flex-shrink:0; background:var(--line) center/cover no-repeat; }
+  .txt { padding:8px 10px 10px; display:flex; flex-direction:column; gap:4px; flex:1; }
+  .tag { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--tag); }
+  .tt { font-size:13px; font-weight:600; line-height:1.3; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .when { font-size:11px; color:var(--dim); margin-top:auto; }
+  a.card.big { grid-column:1 / -1; flex-direction:row; }
+  a.card.big .img { width:55%; height:auto; min-height:180px; }
+  a.card.big .txt { padding:14px; justify-content:center; }
+  a.card.big .tt { font-size:18px; line-height:1.25; -webkit-line-clamp:4; }
+  @media (max-width:420px) { a.card.big { flex-direction:column; } a.card.big .img { width:100%; height:150px; min-height:0; } }
+  .msg { color:var(--dim); font-size:13px; padding:12px 2px; }
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <h1>InfoMoney <span>· Últimas</span></h1>
+    <div class="r"><span id="upd"></span><button id="r" title="Atualizar">↻</button></div>
+  </div>
+  <div class="grid" id="grid"><div class="msg">Carregando…</div></div>
+<script>
+  const FEED = "https://www.infomoney.com.br/feed/";
+  const grid = document.getElementById("grid");
+  const pad = n => String(n).padStart(2, "0");
+  function ago(date) {
+    const m = Math.round((Date.now() - date) / 6e4);
+    if (m < 1) return "agora";
+    if (m < 60) return `há ${m} min`;
+    const h = Math.round(m / 60);
+    return h < 24 ? `há ${h} h` : `há ${Math.round(h / 24)} d`;
+  }
+  function imgFrom(html) {
+    const m = (html || "").match(/<img[^>]+src="([^"]+)"/i);
+    return m ? m[1].replace(/&amp;/g, "&").replace(/fit=\d+%2C\d+/, "fit=600%2C400") : "";
+  }
+  function render(items) {
+    grid.innerHTML = "";
+    items.slice(0, 13).forEach((it, i) => {
+      const a = document.createElement("a");
+      a.className = "card" + (i === 0 ? " big" : "");
+      a.href = it.link; a.target = "_blank"; a.rel = "noopener";
+      const img = document.createElement("div");
+      img.className = "img";
+      if (it.img) img.style.backgroundImage = `url("${it.img}")`;
+      const txt = document.createElement("div");
+      txt.className = "txt";
+      const tag = document.createElement("div"); tag.className = "tag"; tag.textContent = it.tag || "Notícia";
+      const tt = document.createElement("div"); tt.className = "tt"; tt.textContent = it.title;
+      const when = document.createElement("div"); when.className = "when"; when.textContent = ago(it.date);
+      txt.append(tag, tt, when); a.append(img, txt); grid.appendChild(a);
+    });
+    const d = new Date();
+    document.getElementById("upd").textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  async function viaRss2json() {
+    const r = await fetch("https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(FEED));
+    const j = await r.json();
+    if (j.status !== "ok") throw new Error("rss2json");
+    return j.items.map(i => ({
+      title: i.title, link: i.link, tag: (i.categories || [])[0],
+      img: i.thumbnail || imgFrom(i.description) || imgFrom(i.content),
+      date: new Date(i.pubDate.replace(" ", "T") + "Z"),
+    }));
+  }
+  async function load() {
+    try { render(await viaRss2json()); }
+    catch (e) { grid.innerHTML = '<div class="msg">Não consegui carregar o feed agora. Tenta o ↻ daqui a pouco.</div>'; }
+  }
+  document.getElementById("r").onclick = load;
+  load(); setInterval(load, 10 * 60 * 1000);
+</script>
+</body>
+</html>

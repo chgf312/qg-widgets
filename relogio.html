@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>relógio</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#191919; --ink:#ebe6dc; --dim:#8f8a82; --line:#2f2f2f; }
+  @media (prefers-color-scheme: light) { :root { --bg:#ffffff; --ink:#1f1f1f; --dim:#787774; --line:#e9e9e7; } }
+  * { box-sizing:border-box; margin:0; }
+  html,body { height:100%; }
+  body { background:var(--bg); color:var(--ink); font-family:'Inter',system-ui,sans-serif; display:flex; flex-direction:column; justify-content:center; padding:8px 4px; overflow:hidden; }
+  .hi { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:clamp(20px,7vw,28px); color:var(--dim); }
+  .time { font-variant-numeric:lining-nums tabular-nums; font-family:'Cormorant Garamond',serif; font-weight:500; font-size:clamp(64px,26vw,112px); line-height:.9; letter-spacing:-1px; }
+  .date { font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--dim); margin-top:10px; }
+  .bar { height:2px; background:var(--line); margin-top:12px; }
+  .bar i { display:block; height:100%; background:var(--ink); width:0; }
+  .meta { display:flex; justify-content:space-between; font-size:11px; color:var(--dim); margin-top:6px; }
+</style>
+</head>
+<body>
+  <div class="hi" id="hi"></div>
+  <div class="time" id="hm">--:--</div>
+  <div class="date" id="date"></div>
+  <div class="bar"><i id="bar"></i></div>
+  <div class="meta"><span id="wk"></span><span id="pct"></span></div>
+<script>
+  const pad = n => String(n).padStart(2, "0");
+  function tick() {
+    const d = new Date(), h = d.getHours();
+    document.getElementById("hi").textContent =
+      (h < 5 ? "Boa madrugada" : h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite") + ", Caio";
+    document.getElementById("hm").textContent = `${pad(h)}:${pad(d.getMinutes())}`;
+    document.getElementById("date").textContent =
+      d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+    const ini = new Date(d.getFullYear(), 0, 1);
+    const dia = Math.floor((d - ini) / 864e5) + 1;
+    const total = (new Date(d.getFullYear() + 1, 0, 1) - ini) / 864e5;
+    document.getElementById("bar").style.width = (dia / total * 100) + "%";
+    document.getElementById("pct").textContent = `${Math.round(dia / total * 100)}% de ${d.getFullYear()}`;
+    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+    const wk = Math.ceil(((t - new Date(Date.UTC(t.getUTCFullYear(), 0, 1))) / 864e5 + 1) / 7);
+    document.getElementById("wk").textContent = `Semana ${wk}`;
+  }
+  tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>
